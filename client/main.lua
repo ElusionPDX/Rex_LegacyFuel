@@ -39,39 +39,12 @@ local cash 					  = 0
 
 local	ESX = nil
 
-	Citizen.CreateThread(function()
-		while not ESX do
-			TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-			Citizen.Wait(100)
-		end
-	end)
-
---IF YOU WANT TO FREZE THE PUMPS AND HAVE THEM IN "GOD MODE" AKA NO BOOM BOOM STATIONS.  UM COMMIT THIS NEXT PART
---[[
-Citizen.CreateThread(function() -- frozen pumps.
-	local count,pumps = 0,{}
-	while true do
-		for obj in objects() do
-			if not pumps[obj] and valid[GetEntityModel(obj)] then
-				FreezeEntityPosition(obj,true)
-				SetEntityInvincible(obj,true)
-				pumps[obj] = true
-				count = count + 1
-			end
-		end
-		if count >= 100 then
-			for obj in pairs(pumps) do
-				if not DoesEntityExist(obj) then
-					pumps[obj] = nil
-					count = count - 1
-				end
-			end
-		end
-		Wait(0)
+Citizen.CreateThread(function()
+	while not ESX do
+		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+		Citizen.Wait(100)
 	end
 end)
-]]
-
 
 
 local valid = {}
@@ -80,6 +53,55 @@ for _,m in ipairs(models) do
 		m = GetHashKey(m)
 	end
 	valid[m] = true
+end
+
+Citizen.CreateThread(function()
+	local nanoSecond = 0;
+	local count,pumps = 0,{}
+	while true do
+		if (Config.FrozenPumps) then
+			FrozenPumps()
+		end
+		if (Config.DebugStation) then
+			DebugStation()
+		end
+		core()
+		nanoSecond = nanoSecond + 1;
+		if (nanoSecond == 10000) then
+			nanoSecond = 0;
+		end
+		Citizen.Wait(1)
+	end
+end)
+
+function FrozenPumps()
+	for obj in objects() do
+		if not pumps[obj] and valid[GetEntityModel(obj)] then
+			FreezeEntityPosition(obj,true)
+			SetEntityInvincible(obj,true)
+			pumps[obj] = true
+			count = count + 1
+		end
+	end
+	if count >= 100 then
+		for obj in pairs(pumps) do
+			if not DoesEntityExist(obj) then
+				pumps[obj] = nil
+				count = count - 1
+			end
+		end
+	end
+end
+
+function DebugStation()
+	local name = nearPump and getStationName(stationId)
+	if name then
+		SetTextEntry("STRING")
+		SetTextCentre(true)
+		SetTextOutline()
+		AddTextComponentString(name.." ("..tostring(stationFuel[stationId])..")")
+		DrawText(0.5,0.2)
+	end
 end
 
 RegisterNetEvent("LegacyFuel:SpecifyStation")
@@ -107,6 +129,7 @@ function getStationName(id)
 		TriggerServerEvent("LegacyFuel:RequestStation",id)
 	end
 end
+
 function getPumpStation(pump)
 	local pumps = {}
 	
@@ -188,170 +211,166 @@ function FuelVehicle()
 	TaskPlayAnim(ped, "timetable@gardener@filling_can", "gar_ig_5_filling_can", 1.0, 2, -1, 49, 0, 0, 0, 0)
 end
 
+function core()
 
-Citizen.CreateThread(function() -- pump names.
-	while not debug_stations do
-		Wait(0)
-	end
-	while true do
-		local name = nearPump and getStationName(stationId)
-		if name then
-			SetTextEntry("STRING")
-			SetTextCentre(true)
-			SetTextOutline()
-			AddTextComponentString(name.." ("..tostring(stationFuel[stationId])..")")
-			DrawText(0.5,0.2)
+	if not InBlacklistedVehicle then
+		if Timer then
+			DisplayHud()
 		end
-		repeat
-			Wait(0)
-		until debug_stations
-	end
-end)
 
-Citizen.CreateThread(function()
-	while true do
-		Citizen.Wait(1)
+		if nearPump and IsCloseToLastVehicle then
+			local vehicle  = GetPlayersLastVehicle()
+			local fuel 	   = round(GetVehicleFuelLevel(vehicle), 1)
+			
+			if IsPedInAnyVehicle(GetPlayerPed(-1), false) then
+				DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], Config.Translate[Config.Lang]['exit_vehicle_for_refuel'])
+			elseif IsFueling then
+				local position = GetEntityCoords(vehicle)
 
-		if not InBlacklistedVehicle then
-			if Timer then
-				DisplayHud()
-			end
-
-			if nearPump and IsCloseToLastVehicle then
-				local vehicle  = GetPlayersLastVehicle()
-				local fuel 	   = round(GetVehicleFuelLevel(vehicle), 1)
+				DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], string.format(Config.Translate[Config.Lang]['exit_vehicle_for_refuel'], price))
+				DrawText3Ds(position.x, position.y, position.z + 0.5, fuel .. "%")
 				
-				if IsPedInAnyVehicle(GetPlayerPed(-1), false) then
-					DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], "Exit to fuel your vehicle")
-				elseif IsFueling then
-					local position = GetEntityCoords(vehicle)
+				DisableControlAction(0, 0, true) -- Changing view (V)
+				DisableControlAction(0, 22, true) -- Jumping (SPACE)
+				DisableControlAction(0, 23, true) -- Entering vehicle (F)
+				DisableControlAction(0, 24, true) -- Punching/Attacking
+				DisableControlAction(0, 29, true) -- Pointing (B)
+				DisableControlAction(0, 30, true) -- Moving sideways (A/D)
+				DisableControlAction(0, 31, true) -- Moving back & forth (W/S)
+				DisableControlAction(0, 37, false) -- Weapon wheel
+				DisableControlAction(0, 44, true) -- Taking Cover (Q)
+				DisableControlAction(0, 56, true) -- F9
+				DisableControlAction(0, 82, true) -- Mask menu (,)
+				DisableControlAction(0, 140, true) -- Hitting your vehicle (R)
+				DisableControlAction(0, 166, true) -- F5
+				DisableControlAction(0, 167, true) -- F6
+				DisableControlAction(0, 168, true) -- F7
+				DisableControlAction(0, 170, true) -- F3
+				DisableControlAction(0, 288, true) -- F1
+				DisableControlAction(0, 289, true) -- F2
+				DisableControlAction(1, 323, true) -- Handsup (X)
 
-					DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], "Press ~g~G ~w~to cancel the fueling of your vehicle. $~r~" .. price .. " ~w~+  tax")
-					DrawText3Ds(position.x, position.y, position.z + 0.5, fuel .. "%")
-					
-					DisableControlAction(0, 0, true) -- Changing view (V)
-					DisableControlAction(0, 22, true) -- Jumping (SPACE)
-					DisableControlAction(0, 23, true) -- Entering vehicle (F)
-					DisableControlAction(0, 24, true) -- Punching/Attacking
-					DisableControlAction(0, 29, true) -- Pointing (B)
-					DisableControlAction(0, 30, true) -- Moving sideways (A/D)
-					DisableControlAction(0, 31, true) -- Moving back & forth (W/S)
-					DisableControlAction(0, 37, false) -- Weapon wheel
-					DisableControlAction(0, 44, true) -- Taking Cover (Q)
-					DisableControlAction(0, 56, true) -- F9
-					DisableControlAction(0, 82, true) -- Mask menu (,)
-					DisableControlAction(0, 140, true) -- Hitting your vehicle (R)
-					DisableControlAction(0, 166, true) -- F5
-					DisableControlAction(0, 167, true) -- F6
-					DisableControlAction(0, 168, true) -- F7
-					DisableControlAction(0, 170, true) -- F3
-					DisableControlAction(0, 288, true) -- F1
-					DisableControlAction(0, 289, true) -- F2
-					DisableControlAction(1, 323, true) -- Handsup (X)
-
-					if pumpIsEmpty or IsControlJustReleased(0, 47) then
-						if pumpIsEmpty then
-							pumpIsEmpty = false
-							exports.pNotify:SendNotification({text = "This station is empty!",type = "error",timeout = 10000,layout = "centerRight",queue = "left"})
-						end
-						loadAnimDict("reaction@male_stand@small_intro@forward")
-						TaskPlayAnim(GetPlayerPed(-1), "reaction@male_stand@small_intro@forward", "react_forward_small_intro_a", 1.0, 2, -1, 49, 0, 0, 0, 0)
-
-						TriggerServerEvent('Rex:PayFuel', price)
-						Citizen.Wait(2500)
-						ClearPedTasksImmediately(GetPlayerPed(-1))
-						FreezeEntityPosition(GetPlayerPed(-1), false)
-						FreezeEntityPosition(vehicle, false)
-
-						price = 0
-						IsFueling = false
+				if pumpIsEmpty or IsControlJustReleased(0, 47) then
+					if pumpIsEmpty then
+						pumpIsEmpty = false
+						exports.pNotify:SendNotification({text = "Cette station est vide!",type = "error",timeout = 10000,layout = "centerRight",queue = "left"})
 					end
-				elseif fuel > 95.0 then
-					DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], "Your tank is already full!")
-				elseif cash <= 0 then
-					DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], "You currently don't have enough money on you to buy fuel with")
-				else
-					DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], "Press ~g~G ~w~to fuel your vehicle. $~r~3.15/~w~gallon + tax")
-					
-					if IsControlJustReleased(0, 47) then
-						if stationFuel[stationId] == 0 then
-							exports.pNotify:SendNotification({text = "This station is empty!",type = "error",timeout = 10000,layout = "centerRight",queue = "left"})
-						else
-							local vehicle = GetPlayersLastVehicle()
-							local plate   = GetVehicleNumberPlateText(vehicle)
-	
-							ClearPedTasksImmediately(GetPlayerPed(-1))
-	
-							if GetSelectedPedWeapon(GetPlayerPed(-1)) ~= -1569615261 then
-								SetCurrentPedWeapon(GetPlayerPed(-1), -1569615261, true)
-								Citizen.Wait(1000)
-							end
-	
-							IsFueling = true
-	
-							FuelVehicle()
-						end
-					end
+					loadAnimDict("reaction@male_stand@small_intro@forward")
+					TaskPlayAnim(GetPlayerPed(-1), "reaction@male_stand@small_intro@forward", "react_forward_small_intro_a", 1.0, 2, -1, 49, 0, 0, 0, 0)
+
+					TriggerServerEvent('Rex:PayFuel', price)
+					Citizen.Wait(2500)
+					ClearPedTasksImmediately(GetPlayerPed(-1))
+					FreezeEntityPosition(GetPlayerPed(-1), false)
+					FreezeEntityPosition(vehicle, false)
+
+					price = 0
+					IsFueling = false
 				end
-			elseif NearVehicleWithJerryCan and not nearPump and Config.EnableJerryCans then
-				local vehicle  = GetPlayersLastVehicle()
-				local coords   = GetEntityCoords(vehicle)
-				local fuel 	   = round(GetVehicleFuelLevel(vehicle), 1)
-				local jerrycan = GetAmmoInPedWeapon(GetPlayerPed(-1), 883325847)
+			elseif fuel > 95.0 then
+				DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], Config.Translate[Config.Lang]['full_fuel'])
+			elseif cash <= 0 then
+				DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], Config.Translate[Config.Lang]['not_enough_fuel'])
+			else
+				DrawText3Ds(pumpLoc['x'], pumpLoc['y'], pumpLoc['z'], Config.Translate[Config.Lang]['can_fuel'])
 				
-				if IsFuelingWithJerryCan then
-					DrawText3Ds(coords.x, coords.y, coords.z + 0.5, "Press ~g~G ~w~to cancel fueling the vehicle. Currently at: " .. fuel .. "% - Jerry Can: " .. jerrycan)
-
-					DisableControlAction(0, 0, true) -- Changing view (V)
-					DisableControlAction(0, 22, true) -- Jumping (SPACE)
-					DisableControlAction(0, 23, true) -- Entering vehicle (F)
-					DisableControlAction(0, 24, true) -- Punching/Attacking
-					DisableControlAction(0, 29, true) -- Pointing (B)
-					DisableControlAction(0, 30, true) -- Moving sideways (A/D)
-					DisableControlAction(0, 31, true) -- Moving back & forth (W/S)
-					DisableControlAction(0, 37, false) -- Weapon wheel
-					DisableControlAction(0, 44, true) -- Taking Cover (Q)
-					DisableControlAction(0, 56, true) -- F9
-					DisableControlAction(0, 82, true) -- Mask menu (,)
-					DisableControlAction(0, 140, true) -- Hitting your vehicle (R)
-					DisableControlAction(0, 166, true) -- F5
-					DisableControlAction(0, 167, true) -- F6
-					DisableControlAction(0, 168, true) -- F7
-					DisableControlAction(0, 170, true) -- F3
-					DisableControlAction(0, 288, true) -- F1
-					DisableControlAction(0, 289, true) -- F2
-					DisableControlAction(1, 323, true) -- Handsup (X)
-
-					if IsControlJustReleased(0, 47) then
-						loadAnimDict("reaction@male_stand@small_intro@forward")
-						TaskPlayAnim(GetPlayerPed(-1), "reaction@male_stand@small_intro@forward", "react_forward_small_intro_a", 1.0, 2, -1, 49, 0, 0, 0, 0)
-
-						Citizen.Wait(2500)
-						ClearPedTasksImmediately(GetPlayerPed(-1))
-						FreezeEntityPosition(GetPlayerPed(-1), false)
-						FreezeEntityPosition(vehicle, false)
-
-						IsFuelingWithJerryCan = false
-					end
-				else
-					DrawText3Ds(coords.x, coords.y, coords.z + 0.5, "Press ~g~G ~w~to fuel the vehicle with your gas can")
-
-					if IsControlJustReleased(0, 47) then
+				if IsControlJustReleased(0, 46) then
+					if stationFuel[stationId] == 0 then
+						exports.pNotify:SendNotification({text = Config.Translate[Config.Lang]['empty_station'], type = "error",timeout = 10000,layout = "centerRight",queue = "left"})
+					else
 						local vehicle = GetPlayersLastVehicle()
 						local plate   = GetVehicleNumberPlateText(vehicle)
 
 						ClearPedTasksImmediately(GetPlayerPed(-1))
 
-						IsFuelingWithJerryCan = true
+						if GetSelectedPedWeapon(GetPlayerPed(-1)) ~= -1569615261 then
+							SetCurrentPedWeapon(GetPlayerPed(-1), -1569615261, true)
+							Citizen.Wait(1000)
+						end
+
+						IsFueling = true
 
 						FuelVehicle()
 					end
 				end
 			end
-		else
-			Citizen.Wait(500)
+		elseif NearVehicleWithJerryCan and not nearPump and Config.EnableJerryCans then
+			local vehicle  = GetPlayersLastVehicle()
+			local coords   = GetEntityCoords(vehicle)
+			local fuel 	   = round(GetVehicleFuelLevel(vehicle), 1)
+			local jerrycan = GetAmmoInPedWeapon(GetPlayerPed(-1), 883325847)
+			
+			if IsFuelingWithJerryCan then
+				DrawText3Ds(coords.x, coords.y, coords.z + 0.5, string.format(Config.Translate[Config.Lang]['refuel_with_jerycan'], fuel, jerrycan))
+
+				DisableControlAction(0, 0, true) -- Changing view (V)
+				DisableControlAction(0, 22, true) -- Jumping (SPACE)
+				DisableControlAction(0, 23, true) -- Entering vehicle (F)
+				DisableControlAction(0, 24, true) -- Punching/Attacking
+				DisableControlAction(0, 29, true) -- Pointing (B)
+				DisableControlAction(0, 30, true) -- Moving sideways (A/D)
+				DisableControlAction(0, 31, true) -- Moving back & forth (W/S)
+				DisableControlAction(0, 37, false) -- Weapon wheel
+				DisableControlAction(0, 44, true) -- Taking Cover (Q)
+				DisableControlAction(0, 56, true) -- F9
+				DisableControlAction(0, 82, true) -- Mask menu (,)
+				DisableControlAction(0, 140, true) -- Hitting your vehicle (R)
+				DisableControlAction(0, 166, true) -- F5
+				DisableControlAction(0, 167, true) -- F6
+				DisableControlAction(0, 168, true) -- F7
+				DisableControlAction(0, 170, true) -- F3
+				DisableControlAction(0, 288, true) -- F1
+				DisableControlAction(0, 289, true) -- F2
+				DisableControlAction(1, 323, true) -- Handsup (X)
+
+				if IsControlJustReleased(0, 46) then
+					loadAnimDict("reaction@male_stand@small_intro@forward")
+					TaskPlayAnim(GetPlayerPed(-1), "reaction@male_stand@small_intro@forward", "react_forward_small_intro_a", 1.0, 2, -1, 49, 0, 0, 0, 0)
+
+					Citizen.Wait(2500)
+					ClearPedTasksImmediately(GetPlayerPed(-1))
+					FreezeEntityPosition(GetPlayerPed(-1), false)
+					FreezeEntityPosition(vehicle, false)
+
+					IsFuelingWithJerryCan = false
+				end
+			else
+				DrawText3Ds(coords.x, coords.y, coords.z + 0.5, Config.Translate[Config.Lang]['can_refuel_with_jerycan'])
+
+				if IsControlJustReleased(0, 46) then
+					local vehicle = GetPlayersLastVehicle()
+					local plate   = GetVehicleNumberPlateText(vehicle)
+
+					ClearPedTasksImmediately(GetPlayerPed(-1))
+
+					IsFuelingWithJerryCan = true
+
+					FuelVehicle()
+				end
+			end
 		end
 	end
+end
+
+RegisterNetEvent('LegacyFuel:refuelVehicle')
+AddEventHandler('LegacyFuel:refuelVehicle', function(vehicle, plate, fuel)
+	SetVehicleFuelLevel(vehicle, fuel)
+
+	for i = 1, #Vehicles do
+		if Vehicles[i].plate == plate then
+			TriggerServerEvent('LegacyFuel:UpdateServerFuelTable', plate, round(GetVehicleFuelLevel(vehicle), 1))
+			table.remove(Vehicles, i)
+			table.insert(Vehicles, {plate = plate, fuel = fuel})
+			break
+		end
+	end
+end)
+
+RegisterNetEvent('LegacyFuel:refuelPlayerVehicle')
+AddEventHandler('LegacyFuel:refuelPlayerVehicle', function()
+	local vehicle  = GetPlayersLastVehicle()
+	local plate    = GetVehicleNumberPlateText(vehicle)
+	TriggerEvent("LegacyFuel:refuelVehicle", vehicle, plate, 100.0)
 end)
 
 Citizen.CreateThread(function()
@@ -656,7 +675,7 @@ function GetSeatPedIsIn(ped)
 end
 
 function DisplayHud()
-	if IsPedInAnyVehicle(GetPlayerPed(-1), false) and GetSeatPedIsIn(GetPlayerPed(-1)) == -1 then
+	if IsPedInAnyVehicle(GetPlayerPed(-1), false) and GetSeatPedIsIn(GetPlayerPed(-1)) == -1 and Config.EnableHUD then
 		local vehicle = GetPlayersLastVehicle()
 		local fuel    = math.ceil(round(GetVehicleFuelLevel(vehicle), 1))
 		local kmh 	  =	round(GetEntitySpeed(vehicle) * 3.6, 0)
@@ -675,12 +694,12 @@ function DisplayHud()
 		x = 0.01135
 		y = 0.002
 
-		--DrawAdvancedText(0.2195 - x, 0.77 - y, 0.005, 0.0028, 0.6, fuel, 255, 255, 255, 255, 6, 1)
+		DrawAdvancedText(0.2195 - x, 0.77 - y, 0.005, 0.0028, 0.6, fuel, 255, 255, 255, 255, 6, 1)
 
-		--DrawAdvancedText(0.130 - x, 0.77 - y, 0.005, 0.0028, 0.6, mph, 255, 255, 255, 255, 6, 1)
-		--DrawAdvancedText(0.174 - x, 0.77 - y, 0.005, 0.0028, 0.6, kmh, 255, 255, 255, 255, 6, 1)
+		DrawAdvancedText(0.130 - x, 0.77 - y, 0.005, 0.0028, 0.6, mph, 255, 255, 255, 255, 6, 1)
+		DrawAdvancedText(0.174 - x, 0.77 - y, 0.005, 0.0028, 0.6, kmh, 255, 255, 255, 255, 6, 1)
 
-		--DrawAdvancedText(0.148 - x, 0.7765 - y, 0.005, 0.0028, 0.4, "mp/h              km/h              Fuel", 255, 255, 255, 255, 6, 1)
+		DrawAdvancedText(0.148 - x, 0.7765 - y, 0.005, 0.0028, 0.4, "mp/h              km/h              Fuel", 255, 255, 255, 255, 6, 1)
 	end
 end
 
@@ -712,40 +731,32 @@ Citizen.CreateThread(function()
 			local fuel     	   = GetVehicleFuelLevel(vehicle)
 			local rpmfuelusage = 0
 
-			 if rpm > 0.9 then
-                rpmfuelusage = fuel - rpm / 0.97
-				print("top")
-                Citizen.Wait(1000)
-            elseif rpm > 0.8 then
-                rpmfuelusage = fuel - rpm / 1.1
-                Citizen.Wait(1500)
-            elseif rpm > 0.7 then
-                rpmfuelusage = fuel - rpm / 1.2
-                Citizen.Wait(2000)
+			local rmp_value = '0.1'
+
+			if rpm > 0.9 then
+				rmp_value = '1.0'
+			elseif rpm > 0.8 then
+				rmp_value = '0.9'
+			elseif rpm > 0.7 then
+				rmp_value = '0.8'
             elseif rpm > 0.6 then
-                rpmfuelusage = fuel - rpm / 1.3
-                Citizen.Wait(3000)
+				rmp_value = '0.7'
             elseif rpm > 0.5 then
-			print("middle")
-                rpmfuelusage = fuel - rpm / 1.4
-                Citizen.Wait(4000)
+				rmp_value = '0.6'
             elseif rpm > 0.4 then
-			print("bottom1")
-                rpmfuelusage = fuel - rpm / 1.5
-                Citizen.Wait(5000)
+				rmp_value = '0.5'
             elseif rpm > 0.3 then
-                rpmfuelusage = fuel - rpm / 1.5
-				print("bottom2")
-                Citizen.Wait(6000)
+				rmp_value = '0.4'
             elseif rpm > 0.2 then
-			print("bottom3")
-                rpmfuelusage = fuel - rpm / 1.5
-                Citizen.Wait(8000)
-            else
-                rpmfuelusage = fuel - rpm / 1.5
-				print("bottom4")
-                Citizen.Wait(15000)
-            end
+				rmp_value = '0.3'
+            elseif rpm > 0.1 then
+				rmp_value = '0.2'
+            else 
+				rmp_value = '0.1'
+			end
+			
+			rpmfuelusage = fuel - rpm / Config.FuelConfiguration[rmp_value]['consume']
+			Citizen.Wait(Config.FuelConfiguration[rmp_value]['wait'])
 
 			for i = 1, #Vehicles do
 				if Vehicles[i].plate == plate then
@@ -780,47 +791,19 @@ AddEventHandler('LegacyFuel:RecieveCashOnHand', function(cb)
 	cash = cb
 end)
 
-local gas_stations = {
-{ ['x'] = 49.4187,   ['y'] = 2778.793,  ['z'] = 58.043},
-	{ ['x'] = 263.894,   ['y'] = 2606.463,  ['z'] = 44.983},
-	{ ['x'] = 1039.958,  ['y'] = 2671.134,  ['z'] = 39.550},
-	{ ['x'] = 1207.260,  ['y'] = 2660.175,  ['z'] = 37.899},
-	{ ['x'] = 2539.685,  ['y'] = 2594.192,  ['z'] = 37.944},
-	{ ['x'] = 2679.858,  ['y'] = 3263.946,  ['z'] = 55.240},
-	{ ['x'] = 2005.055,  ['y'] = 3773.887,  ['z'] = 32.403},
-	{ ['x'] = 1687.156,  ['y'] = 4929.392,  ['z'] = 42.078},
-	{ ['x'] = 1701.314,  ['y'] = 6416.028,  ['z'] = 32.763},
-	{ ['x'] = 179.857,   ['y'] = 6602.839,  ['z'] = 31.868},
-	{ ['x'] = -94.4619,  ['y'] = 6419.594,  ['z'] = 31.489},
-	{ ['x'] = -2554.996, ['y'] = 2334.40,  ['z'] = 33.078},
-	{ ['x'] = -1800.375, ['y'] = 803.661,  ['z'] = 138.651},
-	{ ['x'] = -1437.622, ['y'] = -276.747,  ['z'] = 46.207},
-	{ ['x'] = -2096.243, ['y'] = -320.286,  ['z'] = 13.168},
-	{ ['x'] = -724.619, ['y'] = -935.1631,  ['z'] = 19.213},
-	{ ['x'] = -526.019, ['y'] = -1211.003,  ['z'] = 18.184},
-	{ ['x'] = -70.2148, ['y'] = -1761.792,  ['z'] = 29.534},
-	{ ['x'] = 265.648,  ['y'] = -1261.309,  ['z'] = 29.292},
-	{ ['x'] = 819.653,  ['y'] = -1028.846,  ['z'] = 26.403},
-	{ ['x'] = 1208.951, ['y'] =  -1402.567, ['z'] = 35.224},
-	{ ['x'] = 1181.381, ['y'] =  -330.847,  ['z'] = 69.316},
-	{ ['x'] = 620.843,  ['y'] =  269.100,  ['z'] = 103.089},
-	{ ['x'] = 2581.321, ['y'] = 362.039, ['z'] = 108.468}
-	--{ ['x'] = 3635.54, ['y'] = -6558.51, ['z'] = 2190.72 }
-}
-
 Citizen.CreateThread(function()
 	if Config.EnableBlips then
-		for k, v in ipairs(gas_stations) do
+		for k, v in ipairs(Config.gas_stations) do
 			local blip = AddBlipForCoord(v.x, v.y, v.z)
 
 			SetBlipSprite(blip, 361)
-			SetBlipScale(blip, 0.9)
+			SetBlipScale(blip, 0.6)
 			SetBlipColour(blip, 6)
 			SetBlipDisplay(blip, 4)
 			SetBlipAsShortRange(blip, true)
 
 			BeginTextCommandSetBlipName("STRING")
-			AddTextComponentString("Gas Station")
+			AddTextComponentString("Station Essences")
 			EndTextCommandSetBlipName(blip)
 		end
 	end
