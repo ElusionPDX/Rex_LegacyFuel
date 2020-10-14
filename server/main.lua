@@ -1,33 +1,25 @@
-print("LegacyFuel edits by REX")
-print("V1.0")
-print(" ")
-print(" ")
-print(" ")
-print("THIS NEEDS TO IN THE MAIN RESOURCE FOLDER FOR IT TO LOAD AND SAVE THE STATION TANK LEVELS ")
-
 local loadedfile = false
 local resource = GetCurrentResourceName()
-local file = "resources\\"..resource.."\\stations.txt"
+local path = GetResourcePath(resource)
+local file = path.."/stations.txt"
 local players = {}
 local stations = {}
 
+print(path)
+
 --set the random names it will give a staton when found
 local names = {
-	"Shell",
-	"7-11",
-	"Hess",
-	"Cumbies",
-	"Moble",
-	"one",
-	"Alpha",
-	"Bravo",
-	"Charlie",
-	"Delta",
-	"Echo",
-	"Foxtrot",
-	"Gary The Snail",
+
 }
 names.n = #names
+
+RegisterCommand("refuel", function(source, args, rawCommand)
+	if (source > 0) then
+		TriggerClientEvent("LegacyFuel:refuelPlayerVehicle", source)
+	else
+        print("This command was executed by the server console, RCON client, or a resource.")
+    end
+end)
 
 math.randomseed(os.time())
 
@@ -86,7 +78,7 @@ AddEventHandler("LegacyFuel:RequestStation",function(id)
 		station = {fuel=2000.0}
 		stations[id] = station
 		if names.n == 0 then
-			station.name = "Gas Station"
+			station.name = "Disponible: "
 			print(tostring(GetPlayerName(source)).." discovered a new fuel station, but there are no names left! ("..id..")")
 		else
 			station.name = table.remove(names,math.random(1,names.n))
